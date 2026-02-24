@@ -8,8 +8,7 @@ class Matrix():
 
     WRITTEN FOR FUN, NOT FOR SPEED!
     """
-
-class Matrix:
+    
     def __init__(self, *rows: Union[float, int, Tuple[Union[float, int], ...]], **kwargs: Any) -> None:
         """CONSTRUCTOR FOR MATRIX"""
         self.entries: List[float] = []
@@ -156,7 +155,7 @@ class Matrix:
             return self.entries[0]*self.entries[3] - self.entries[1]*self.entries[2]
         
         if self.use_C:
-            return cmat.det(self.entries, self.n)
+            return cmat.mat_det(self.entries, self.n)
         
         """TO IMPLEMENT PYTHONIC VERSION, LAPLACE EXPANSION"""
         
@@ -234,32 +233,45 @@ class Matrix:
         """SCALAR MATRIX MULTIPLICATION HELPER"""
         return Matrix(*Matrix.to_tuple_form([other*i for i in self.entries], self.n, self.m))
 
-
 if __name__ == "__main__":
-    import time
+    print("--- Matrix Determinant Tests ---")
 
-    size: int = 300
-    
-    print(f"--- Benchmarking Matrix Multiplication ({size}x{size}) ---")
+    # 1. Test 2x2 Case (Handled by your Python logic)
+    # det = (1*4) - (2*3) = -2
+    m2x2 = Matrix((1, 2), (3, 4))
+    print(f"2x2 Matrix:\n{m2x2}")
+    print(f"Determinant: {m2x2.det} | Expected: -2.0")
+    print("-" * 30)
 
-    m1: Matrix = Matrix.random(size, size)
-    m2: Matrix = Matrix.random(size, size)
-    
-    start_c: float = time.perf_counter()
-    res_c: Matrix = m1 * m2
-    end_c: float = time.perf_counter()
-    time_c: float = end_c - start_c
-    print(f"C Backend Time:      {time_c:.4f} seconds")
+    # 2. Test 3x3 Case (This will trigger cmat.det if use_C is True)
+    # Using a known matrix where det = 0
+    m3x3_singular = Matrix(
+        (1, 2, 3),
+        (4, 5, 6),
+        (7, 8, 9)
+    )
+    print(f"3x3 Singular Matrix:\n{m3x3_singular}")
+    print(f"Determinant: {m3x3_singular.det} | Expected: 0.0")
+    print("-" * 30)
 
-    m1.use_C = False
-    start_py: float = time.perf_counter()
-    res_py: Matrix = m1 * m2
-    end_py: float = time.perf_counter()
-    time_py: float = end_py - start_py
-    print(f"Pure Python Time:    {time_py:.4f} seconds")
+    # 3. Test Identity Matrix
+    size = 4
+    m_ident = Matrix.identity(size)
+    print(f"{size}x{size} Identity Matrix:\n{m_ident}")
+    print(f"Determinant: {m_ident.det} | Expected: 1.0")
+    print("-" * 30)
 
-    if time_c > 0:
-        speedup: float = time_py / time_c
-        print(f"Speedup Factor:      {speedup:.2f}x faster with C")
-    
-    print("--------------------------------------------------")
+    # 4. Test Error Handling (Non-square matrix)
+    try:
+        m_rect = Matrix((1, 2, 3), (4, 5, 6))
+        print("Testing non-square determinant...")
+        _ = m_rect.det
+    except Exception as e:
+        print(f"Caught expected error for non-square matrix: {e}")
+
+    # 5. Scalar Multiplication & Det check
+    # det(kA) = k^n * det(A)
+    k = 2
+    m_scaled = m2x2 * k
+    print(f"\nScaled 2x2 (factor {k}):\n{m_scaled}")
+    print(f"New Det: {m_scaled.det} | Expected (k^2 * -2): -8.0")
