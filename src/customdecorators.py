@@ -1,28 +1,10 @@
 from __future__ import annotations # Fixes the "Matrix not defined" error
 from functools import wraps
 from typing import Callable, Any, TYPE_CHECKING
-from contextlib import contextmanager
-from functools import wraps
-from typing import Callable, Any
-
-@contextmanager
-def internal():
-    """MARKS OPERATIONS AS INTERNAL TO SURPRESS PERFORMANCE WARNINGS"""
-    yield {"_internal": True}
-
-def internal_call(func):
-    @wraps(func)
-    def wrapper(self, *args, _internal=False, **kwargs):
-        return func(self, *args, _internal=_internal, **kwargs)
-    return wrapper
-
-
 
 
 if TYPE_CHECKING:
     Help = Helpers
-
-
 
 
 def alias(*names):
@@ -71,6 +53,8 @@ def validate_dimensions(op_type: str) -> Callable:
             if op_type == "square":
                 if self.m != self.n:
                     raise ValueError(f"Matrix must be square for {func.__name__} (got {self.m}x{self.n})")
+                if self.m == 0 or self.n == 0:
+                    raise ValueError(f"Matrix cannot be empty for {func.__name__}")
                 return func(self, *args)
 
             if not args:
@@ -98,19 +82,18 @@ def performance_warning(threshold: int = 50_000) -> Callable:
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(self, *args, _internal=False, **kwargs):
-            # Only print warnings if NOT internal
-            if not _internal:
-                is_disabled = getattr(self, "disable_perf_hints", False)
 
-                if not is_disabled and getattr(self, "force_C", False):
-                    print("\033[1;33mJust a heads up!\033[0m "
-                          "Program forces C, potentially slower than pure Python.")
+            is_disabled = getattr(self, "disable_perf_hints", False)
 
-                elif not is_disabled and not getattr(self, "use_C", True):
-                    if self.m * self.n > threshold:
-                        print(f"\033[1;33mJust a heads up!\033[0m "
-                              f"Large matrix op ({self.m}x{self.n}) is running in pure Python.")
+            if not is_disabled and getattr(self, "force_C", False):
+                print("\033[1;33mJust a heads up!\033[0m "
+                        "Program forces C, potentially slower than pure Python.")
 
-            return func(self, *args, _internal=_internal, **kwargs)
+            elif not is_disabled and not getattr(self, "use_C", True):
+                if self.m * self.n > threshold:
+                    print(f"\033[1;33mJust a heads up!\033[0m "
+                            f"Large matrix op ({self.m}x{self.n}) is running in pure Python.")
+
+            return func(self, *args, **kwargs)
         return wrapper
     return decorator
