@@ -1,6 +1,3 @@
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), "../PythonCLinkage"))
 import cmat
 from typing import Self
 from customdecorators import alias
@@ -135,7 +132,7 @@ class Matrix():
         if not self.use_C:
             summed_entries: list = [i+j for i,j in zip(self.entries, other.entries)]
             return Matrix(*Matrix.to_tuple_form(summed_entries, self.n, self.m))
-
+        
         C_entries = cmat.mat_add(self.entries, other.entries, self.m, self.n)
         return Matrix(*self.to_tuple_form(C_entries, self.n, self.m))
 

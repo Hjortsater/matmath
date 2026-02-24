@@ -1,7 +1,4 @@
 .venv
 __pycache__
 src/__pycache__
-PythonCLinkage/build
-PythonCLinkage/build_temp
-PythonCLinkage/src
-PythonCLinkage/cmat.cpython-312-x86_64-linux-gnu.so
+Makefile
