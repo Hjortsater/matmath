@@ -55,7 +55,7 @@ class Matrix:
 
     def _smul(self, other: float) -> Self:
         """PERFORM SCALAR MULTIPLICATION"""
-        return Matrix._from_flat([other * i for i in self.entries], self.n, self.m)
+        return Matrix._from_flat([other * i for i in self.entries], self.n, self.m, template=self)
 
     def _determinant(self, _internal: bool = False) -> float:
         """INTERNAL DETERMINANT CALCULATION LOGIC"""
@@ -100,10 +100,19 @@ class Matrix:
         return [tuple(lst[i * n : (i + 1) * n]) for i in range(m)]
 
     @classmethod
-    def _from_flat(cls, entries: List[float], n: int, m: int) -> Self:
+    def _from_flat(cls, entries: List[float], n: int, m: int, template: Self = None) -> Self:
         """CREATE MATRIX INSTANCE FROM FLATTENED LIST"""
         tuples: List[Tuple[float, ...]] = cls.to_tuple_form(entries, n, m)
-        return cls(*tuples)
+        if template is None:
+            return cls(*tuples)
+        return cls(
+            *tuples,
+            use_C=template.use_C,
+            force_C=template.force_C,
+            use_color=template.use_color,
+            sig_digits=template.sig_digits,
+            disable_warnings=template.disable_perf_hints,
+        )
 
     @alias("ident", "IDENT", "I")
     @classmethod
@@ -149,7 +158,7 @@ class Matrix:
         for j in range(self.n):
             for i in range(self.m):
                 transposed_entries.append(self.entries[i * self.n + j])
-        return Matrix(*self.to_tuple_form(transposed_entries, self.m, self.n))
+        return Matrix._from_flat(transposed_entries, self.m, self.n, template=self)
 
     @alias("det")
     @property
@@ -176,11 +185,11 @@ class Matrix:
                 -self.entries[2] / det,
                 self.entries[0] / det
             ]
-            return Matrix(*self.to_tuple_form(inv_entries, 2, 2))
+            return Matrix._from_flat(inv_entries, 2, 2, template=self)
 
         if self.use_C:
             c_inv: List[float] = cmat.mat_inv(self.entries, self.n)
-            return Matrix(*self.to_tuple_form(c_inv, self.n, self.n))
+            return Matrix._from_flat(c_inv, self.n, self.n, template=self)
 
         raise NotImplementedError("Inverse for matrices larger than 2x2 is not implemented in pure Python.")
 
@@ -253,7 +262,7 @@ class Matrix:
         """ADD TWO MATRICES"""
         if not self.force_C:
             summed_entries: List[float] = [i + j for i, j in zip(self.entries, other.entries)]
-            return Matrix._from_flat(summed_entries, self.n, self.m)
+            return Matrix._from_flat(summed_entries, self.n, self.m, template=self)
         
         C_entries: List[float] = cmat.mat_add(self.entries, other.entries, self.m, self.n)
         return Matrix._from_flat(C_entries, self.n, self.m)
@@ -264,10 +273,10 @@ class Matrix:
         """SUBTRACT TWO MATRICES"""
         if not self.force_C:
             subbed_entries: List[float] = [i - j for i, j in zip(self.entries, other.entries)]
-            return Matrix._from_flat(subbed_entries, self.n, self.m)
+            return Matrix._from_flat(subbed_entries, self.n, self.m, template=self)
         
         C_entries: List[float] = cmat.mat_sub(self.entries, other.entries, self.m, self.n)
-        return Matrix._from_flat(C_entries, self.n, self.m)
+        return Matrix._from_flat(C_entries, self.n, self.m, template=self)
 
     @validate_dimensions("matmul")
     @performance_warning()
@@ -282,14 +291,14 @@ class Matrix:
                 for j in range(other.n):
                     val: float = sum(self.entries[i * self.n + k] * other.entries[k * other.n + j] for k in range(self.n))
                     mult_entries.append(val)
-            return Matrix._from_flat(mult_entries, other.n, self.m)
+            return Matrix._from_flat(mult_entries, other.n, self.m, template=self)
 
         C_result: List[float] = cmat.mat_mul(self.entries, other.entries, self.m, self.n, other.n)
         
         if len(C_result) == 1 and self.m == 1 and other.n == 1:
             return float(C_result[0])
             
-        return Matrix._from_flat(C_result, other.n, self.m)
+        return Matrix._from_flat(C_result, other.n, self.m, template=self)
 
     @validate_dimensions("elementwise")
     @performance_warning()
@@ -300,8 +309,8 @@ class Matrix:
         
         if not self.force_C:
             mult_entries: List[float] = [i * j for i, j in zip(self.entries, other.entries)]
-            return Matrix._from_flat(mult_entries, self.n, self.m)
+            return Matrix._from_flat(mult_entries, self.n, self.m, template=self)
             
         C_entries: List[float] = cmat.hadamard(self.entries, other.entries, self.m, self.n)
-        return Matrix._from_flat(C_entries, self.n, self.m)
+        return Matrix._from_flat(C_entries, self.n, self.m, template=self)
 
