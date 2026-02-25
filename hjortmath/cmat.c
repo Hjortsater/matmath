@@ -2,12 +2,20 @@
 #include <stdlib.h>
 #include <string.h> 
 #include <math.h>
+#include <omp.h>
+
+__attribute__((constructor))
+void init_omp() {
+    omp_set_num_threads(4);
+}
 
 void mat_add(const double* A,
              const double* B,
              double* C,
-             size_t size)
+             size_t size,
+             int use_OMP)
 {
+    #pragma omp parallel for if(use_OMP)
     for (size_t i = 0; i < size; i++)
         C[i] = A[i] + B[i];
 }
@@ -15,8 +23,10 @@ void mat_add(const double* A,
 void mat_sub(const double* A,
              const double* B,
              double* C,
-             size_t size)
+             size_t size,
+             int use_OMP)
 {
+    #pragma omp parallel for if(use_OMP)
     for (size_t i = 0; i < size; i++)
         C[i] = A[i] - B[i];
 }
@@ -24,28 +34,38 @@ void mat_sub(const double* A,
 void hadamard(const double* A,
               const double* B,
               double* C,
-              size_t size)
+              size_t size,
+              int use_OMP)
 {
+    #pragma omp parallel for if(use_OMP)
     for (size_t i = 0; i < size; i++)
         C[i] = A[i] * B[i];
 }
 
 void mat_mul(const double* A, const double* B, double* C,
-             size_t m, size_t n, size_t p)
+             size_t m, size_t n, size_t p,
+             int use_OMP)
 {
+    printf("DEBUG: mat_mul %zux%zu, use_OMP=%d, threads=%d\n", 
+           m, p, use_OMP, omp_get_max_threads());
+    
+    #pragma omp parallel for if(use_OMP)
     for (size_t i = 0; i < m; i++)
         for (size_t j = 0; j < p; j++)
             C[i*p + j] = 0.0;
 
+    #pragma omp parallel for if(use_OMP) collapse(2)
     for (size_t i = 0; i < m; i++)
     {
+        if (i == 0 && omp_in_parallel()) {
+            printf("DEBUG: Actually running in parallel with %d threads\n", 
+                   omp_get_num_threads());
+        }
         for (size_t k = 0; k < n; k++)
         {
             double a = A[i*n + k];
             for (size_t j = 0; j < p; j++)
-            {
                 C[i*p + j] += a * B[k*p + j];
-            }
         }
     }
 }
@@ -53,13 +73,15 @@ void mat_mul(const double* A, const double* B, double* C,
 void scalar_mul(const double* A,
                 double scalar,
                 double* C,
-                size_t size)
+                size_t size,
+                int use_OMP)
 {
+    #pragma omp parallel for if(use_OMP)
     for (size_t i = 0; i < size; i++)
         C[i] = A[i] * scalar;
 }
 
-double mat_det(const double* A, size_t n) {
+double mat_det(const double* A, size_t n, int use_OMP) {
     if (n == 0) return 0;
     if (n == 1) return A[0];
 
@@ -92,11 +114,11 @@ double mat_det(const double* A, size_t n) {
 
         det *= temp[i * n + i];
 
+        #pragma omp parallel for if(use_OMP)
         for (size_t j = i + 1; j < n; j++) {
             double factor = temp[j * n + i] / temp[i * n + i];
-            for (size_t k = i + 1; k < n; k++) {
+            for (size_t k = i + 1; k < n; k++)
                 temp[j * n + k] -= factor * temp[i * n + k];
-            }
         }
     }
 
@@ -106,14 +128,10 @@ double mat_det(const double* A, size_t n) {
 
 #define IDX(i,j,n) ((i)*(n) + (j))
 
-void mat_inv(const double* A, double* invA, int n)
+void mat_inv(const double* A, double* invA, int n, int use_OMP)
 {
-
-    /* Fast LU Implentation */
-
     double* LU = (double*)malloc(n * n * sizeof(double));
     int* piv = (int*)malloc(n * sizeof(int));
-
     memcpy(LU, A, n * n * sizeof(double));
 
     for (int i = 0; i < n; i++)
@@ -144,6 +162,7 @@ void mat_inv(const double* A, double* invA, int n)
 
         double diag = LU[IDX(k,k,n)];
 
+        #pragma omp parallel for if(use_OMP)
         for (int i = k + 1; i < n; i++) {
             LU[IDX(i,k,n)] /= diag;
             double mult = LU[IDX(i,k,n)];
@@ -152,17 +171,16 @@ void mat_inv(const double* A, double* invA, int n)
         }
     }
 
+    #pragma omp parallel for if(use_OMP)
     for (int col = 0; col < n; col++) {
-
         double* x = (double*)calloc(n, sizeof(double));
         x[col] = 1.0;
 
-            double* x_perm = (double*)malloc(n * sizeof(double));
-            for (int i = 0; i < n; i++)
-                x_perm[i] = x[piv[i]];
-
-            free(x);
-            x = x_perm;
+        double* x_perm = (double*)malloc(n * sizeof(double));
+        for (int i = 0; i < n; i++)
+            x_perm[i] = x[piv[i]];
+        free(x);
+        x = x_perm;
 
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < i; j++)

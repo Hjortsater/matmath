@@ -10,8 +10,11 @@ All functions return a new Python list.
 from .imports import *
 from .customdecorators import alias
 
+
 if TYPE_CHECKING:
         Help = Helpers
+
+
 
 _lib = ctypes.CDLL(os.path.join(os.path.dirname(__file__), "libcmat.so"))
 
@@ -23,7 +26,8 @@ _lib.mat_add.argtypes = [
     ctypes.POINTER(ctypes.c_double),  # A
     ctypes.POINTER(ctypes.c_double),  # B
     ctypes.POINTER(ctypes.c_double),  # C (output)
-    ctypes.c_size_t                   # size
+    ctypes.c_size_t,                  # size
+    ctypes.c_int                      # use_OMP
 ]
 _lib.mat_add.restype = None
 
@@ -32,7 +36,8 @@ _lib.mat_sub.argtypes = [
     ctypes.POINTER(ctypes.c_double),
     ctypes.POINTER(ctypes.c_double),
     ctypes.POINTER(ctypes.c_double),
-    ctypes.c_size_t
+    ctypes.c_size_t,
+    ctypes.c_int
 ]
 _lib.mat_sub.restype = None
 
@@ -41,7 +46,8 @@ _lib.hadamard.argtypes = [
     ctypes.POINTER(ctypes.c_double),
     ctypes.POINTER(ctypes.c_double),
     ctypes.POINTER(ctypes.c_double),
-    ctypes.c_size_t
+    ctypes.c_size_t,
+    ctypes.c_int
 ]
 _lib.hadamard.restype = None
 
@@ -49,7 +55,10 @@ _lib.mat_mul.argtypes = [
     ctypes.POINTER(ctypes.c_double),
     ctypes.POINTER(ctypes.c_double),
     ctypes.POINTER(ctypes.c_double),
-    ctypes.c_size_t
+    ctypes.c_size_t,
+    ctypes.c_size_t,
+    ctypes.c_size_t,
+    ctypes.c_int
 ]
 _lib.mat_mul.restype = None
 
@@ -58,20 +67,23 @@ _lib.scalar_mul.argtypes = [
     ctypes.POINTER(ctypes.c_double),
     ctypes.c_double,
     ctypes.POINTER(ctypes.c_double),
-    ctypes.c_size_t
+    ctypes.c_size_t,
+    ctypes.c_int
 ]
 _lib.scalar_mul.restype = None
 
 
 _lib.mat_det.argtypes = [
     ctypes.POINTER(ctypes.c_double), 
-    ctypes.c_size_t
+    ctypes.c_size_t,
+    ctypes.c_int
 ]
 _lib.mat_det.restype = ctypes.c_double
 
 _lib.mat_inv.argtypes = [
     ctypes.POINTER(ctypes.c_double),
     ctypes.POINTER(ctypes.c_double),
+    ctypes.c_int,
     ctypes.c_int
 ]
 _lib.mat_inv.restype = None
@@ -96,7 +108,7 @@ class Helpers():
 
 
 
-def mat_add(A, B, m=None, n=None):
+def mat_add(A, B, m=None, n=None, use_OMP=True):
     size = len(A)
 
     if len(B) != size:
@@ -106,12 +118,12 @@ def mat_add(A, B, m=None, n=None):
     B_arr = Help._to_c_array(B)
     C_arr = Help._new_c_array(size)
 
-    _lib.mat_add(A_arr, B_arr, C_arr, size)
+    _lib.mat_add(A_arr, B_arr, C_arr, size, ctypes.c_int(1 if use_OMP else 0))
 
     return Help._to_py_list(C_arr, size)
 
 
-def mat_sub(A, B, m=None, n=None):
+def mat_sub(A, B, m=None, n=None, use_OMP=True):
     size = len(A)
 
     if len(B) != size:
@@ -121,12 +133,12 @@ def mat_sub(A, B, m=None, n=None):
     B_arr = Help._to_c_array(B)
     C_arr = Help._new_c_array(size)
 
-    _lib.mat_sub(A_arr, B_arr, C_arr, size)
+    _lib.mat_sub(A_arr, B_arr, C_arr, size, ctypes.c_int(1 if use_OMP else 0))
 
     return Help._to_py_list(C_arr, size)
 
 
-def hadamard(A, B, m=None, n=None):
+def hadamard(A, B, m=None, n=None, use_OMP=True):
     size = len(A)
 
     if len(B) != size:
@@ -136,47 +148,46 @@ def hadamard(A, B, m=None, n=None):
     B_arr = Help._to_c_array(B)
     C_arr = Help._new_c_array(size)
 
-    _lib.hadamard(A_arr, B_arr, C_arr, size)
+    _lib.hadamard(A_arr, B_arr, C_arr, size, ctypes.c_int(1 if use_OMP else 0))
 
     return Help._to_py_list(C_arr, size)
 
-def mat_mul(A, B, m, n, p):
-
+def mat_mul(A, B, m, n, p, use_OMP=True):
     A_arr = Help._to_c_array(A)
     B_arr = Help._to_c_array(B)
     C_arr = Help._new_c_array(m*p)
 
-    _lib.mat_mul(A_arr, B_arr, C_arr, m, n, p)
+    _lib.mat_mul(A_arr, B_arr, C_arr, m, n, p, ctypes.c_int(1 if use_OMP else 0))
     return Help._to_py_list(C_arr, m*p)
 
-def scalar_mul(A, scalar, m=None, n=None):
+def scalar_mul(A, scalar, m=None, n=None, use_OMP=True):
     size = len(A)
 
     A_arr = Help._to_c_array(A)
     C_arr = Help._new_c_array(size)
 
-    _lib.scalar_mul(A_arr, ctypes.c_double(scalar), C_arr, size)
+    _lib.scalar_mul(A_arr, ctypes.c_double(scalar), C_arr, size, ctypes.c_int(1 if use_OMP else 0))
 
     return Help._to_py_list(C_arr, size)
 
 
-def mat_det(A, n):
+def mat_det(A, n, use_OMP=True):
     if len(A) != n * n:
         raise ValueError("Matrix list size does not match provided dimensions.")
 
     A_arr = Help._to_c_array(A)
     
-    result = _lib.mat_det(A_arr, n)
+    result = _lib.mat_det(A_arr, n, ctypes.c_int(1 if use_OMP else 0))
     
     return float(result)
 
-def mat_inv(A, n):
+def mat_inv(A, n, use_OMP=True):
     if len(A) != n * n:
         raise ValueError("Matrix list size does not match provided dimensions.")
 
     A_arr = Help._to_c_array(A)
     C_arr = Help._new_c_array(n * n)
 
-    _lib.mat_inv(A_arr, C_arr, ctypes.c_int(n))
+    _lib.mat_inv(A_arr, C_arr, ctypes.c_int(n), ctypes.c_int(1 if use_OMP else 0))
 
     return Help._to_py_list(C_arr, n * n)

@@ -22,6 +22,7 @@ class Matrix:
         self.use_color: bool = kwargs.get('use_color', True)
         self.sig_digits: int = kwargs.get('sig_digits', 4)
         self.disable_perf_hints: bool = kwargs.get('disable_warnings', False)
+        self.multithreaded: bool = kwargs.get('multithreaded', True)
         
         self._cached_repr: Optional[str] = None
 
@@ -65,7 +66,7 @@ class Matrix:
             return self.entries[0] * self.entries[3] - self.entries[1] * self.entries[2]
 
         if self.use_C:
-            return float(cmat.mat_det(self.entries, self.n))
+            return float(cmat.mat_det(self.entries, self.n, use_OMP=self.multithreaded))
 
         if not _internal:
             yellow_bold: str = "\033[1;33m"
@@ -188,7 +189,7 @@ class Matrix:
             return Matrix._from_flat(inv_entries, 2, 2, template=self)
 
         if self.use_C:
-            c_inv: List[float] = cmat.mat_inv(self.entries, self.n)
+            c_inv: List[float] = cmat.mat_inv(self.entries, self.n, use_OMP=self.multithreaded)
             return Matrix._from_flat(c_inv, self.n, self.n, template=self)
 
         raise NotImplementedError("Inverse for matrices larger than 2x2 is not implemented in pure Python.")
@@ -264,7 +265,7 @@ class Matrix:
             summed_entries: List[float] = [i + j for i, j in zip(self.entries, other.entries)]
             return Matrix._from_flat(summed_entries, self.n, self.m, template=self)
         
-        C_entries: List[float] = cmat.mat_add(self.entries, other.entries, self.m, self.n)
+        C_entries: List[float] = cmat.mat_add(self.entries, other.entries, self.m, self.n, use_OMP=self.multithreaded)
         return Matrix._from_flat(C_entries, self.n, self.m)
 
     @validate_dimensions("elementwise")
@@ -275,7 +276,7 @@ class Matrix:
             subbed_entries: List[float] = [i - j for i, j in zip(self.entries, other.entries)]
             return Matrix._from_flat(subbed_entries, self.n, self.m, template=self)
         
-        C_entries: List[float] = cmat.mat_sub(self.entries, other.entries, self.m, self.n)
+        C_entries: List[float] = cmat.mat_sub(self.entries, other.entries, self.m, self.n, use_OMP=self.multithreaded)
         return Matrix._from_flat(C_entries, self.n, self.m, template=self)
 
     @validate_dimensions("matmul")
@@ -293,7 +294,7 @@ class Matrix:
                     mult_entries.append(val)
             return Matrix._from_flat(mult_entries, other.n, self.m, template=self)
 
-        C_result: List[float] = cmat.mat_mul(self.entries, other.entries, self.m, self.n, other.n)
+        C_result: List[float] = cmat.mat_mul(self.entries, other.entries, self.m, self.n, other.n, use_OMP=self.multithreaded)
         
         if len(C_result) == 1 and self.m == 1 and other.n == 1:
             return float(C_result[0])
@@ -311,6 +312,5 @@ class Matrix:
             mult_entries: List[float] = [i * j for i, j in zip(self.entries, other.entries)]
             return Matrix._from_flat(mult_entries, self.n, self.m, template=self)
             
-        C_entries: List[float] = cmat.hadamard(self.entries, other.entries, self.m, self.n)
+        C_entries: List[float] = cmat.hadamard(self.entries, other.entries, self.m, self.n, use_OMP=self.multithreaded)
         return Matrix._from_flat(C_entries, self.n, self.m, template=self)
-
