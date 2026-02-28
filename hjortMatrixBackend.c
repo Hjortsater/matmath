@@ -1,6 +1,8 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <omp.h>
 #include <time.h>
+#include <cblas.h>
 
 /*
 
@@ -36,7 +38,18 @@ Matrix* matrix_create(int m, int n){
     return M;
 }
 
-void matrix_free(Matrix* M) {
+Matrix* matrix_create_from_buffer(size_t m, size_t n, const double* data){
+    Matrix* M = matrix_create(m, n);
+    if (!M){
+        // Fatal Matrix creation error, return immediately.
+        return NULL;
+    }
+
+    memcpy(M->data, data, m * n * sizeof(double));
+    return M;
+}
+
+void matrix_free(Matrix* M){
     // Free specific matrix reference immediately.
     if (!M) return;
     if (M->data) free(M->data);
@@ -153,5 +166,63 @@ Matrix* matrix_add(Matrix* A, Matrix* B, int multithreaded){
     for(int i=0;i<size;i++)
         C->data[i] = A->data[i] + B->data[i];
 
+    return C;
+}
+
+Matrix* matrix_sub(Matrix* A, Matrix* B, int multithreaded){
+    if(!A || !B || A->m != B->m || A->n != B->n){
+        // Fatal matrix reference or data error(s), return immediately
+        return NULL;
+    }
+    Matrix* C = matrix_create(A->m, A->n);
+    if(!C){
+        // Unable to create new matrix, return immediately
+        return NULL;
+    }
+    int size = A->m * A->n;
+
+#if defined(_OPENMP)
+    if(multithreaded){
+        #pragma omp parallel for
+        for(int i=0;i<size;i++)
+            C->data[i] = A->data[i] - B->data[i];
+        return C;
+    }
+#endif
+
+    // Fallback sequential
+    for(int i=0;i<size;i++)
+        C->data[i] = A->data[i] - B->data[i];
+
+    return C;
+}
+
+
+
+Matrix* matrix_mul(Matrix* A, Matrix* B, int multithreaded) {
+
+    /* Borrowed matrix multiplication BLAS implementation. Difficult to compete with its speed!*/
+    if (!A || !B || A->n != B->m){
+        // Fatal Matrix reference or dimension error, return immediately.
+        return NULL;
+    }
+    
+    Matrix* C = matrix_create(A->m, B->n);
+    if (!C) return NULL;
+    
+    #ifdef _OPENMP
+    if (multithreaded) {
+        openblas_set_num_threads(omp_get_max_threads());
+    } else {
+        openblas_set_num_threads(1);
+    }
+    #endif
+    
+    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+                A->m, B->n, A->n,
+                1.0, A->data, A->n,
+                B->data, B->n,
+                0.0, C->data, B->n);
+    
     return C;
 }

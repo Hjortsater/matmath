@@ -29,26 +29,39 @@ class Matrix:
     def __init__(self, *rows, **flags) -> None:
         """Pythonic constructor, slow but Python-native"""
         self._flags = self._Flags(**flags)
+        flat = rows
 
         if not len(rows):
             raise ValueError("Matrix cannot be empty.")
 
+        # NOTE 1D vector input
         if all(isinstance(i, (int, float)) for i in rows):
-            self._ptr = CFunc.matrix_create(1, len(rows))
-            if not self._ptr:
-                raise MemoryError("Failed to allocate matrix in C.")
-            for j, val in enumerate(rows):
-                CFunc.matrix_set(self._ptr, 0, j, val)
-            return
+            m, n = 1, len(rows)
+            flat = rows
 
-        if all(isinstance(row, (tuple, list)) and len(row) == len(rows[0]) for row in rows):
-            self._ptr = CFunc.matrix_create(len(rows), len(rows[0]))
-            if not self._ptr:
-                raise MemoryError("Failed to allocate matrix in C.")
-            for i, row in enumerate(rows):
-                for j, val in enumerate(row):
-                    CFunc.matrix_set(self._ptr, i, j, val)
-    
+        # NOTE 2D matrix input (can still result in vector)
+        elif all(isinstance(r, (list, tuple)) for r in rows):
+            m = len(rows)
+            n = len(rows[0])
+
+            if any(len(r) != n for r in rows):
+                raise ValueError("Rows must be same length.")
+
+            flat = [val for r in rows for val in r]
+
+        else:
+            raise TypeError("Invalid constructor input.")
+        
+        import array
+        buffer = array.array('d', flat)
+        ptr = CFunc.matrix_create_from_buffer(buffer, m, n)
+        
+        if not ptr:
+            raise MemoryError("C backend allocation failed")
+        
+        self._ptr = ptr
+
+      
     @classmethod
     def __init__C_native(cls, ptr, **flags):
         """
@@ -143,6 +156,44 @@ class Matrix:
         if not new_ptr:
             raise MemoryError("C backend failed to allocate result matrix.")
 
+        return Matrix.__init__C_native(
+            new_ptr,
+            sig_digits=self._flags.sig_digits,
+            use_color=self._flags.use_color,
+            multithreaded=self._flags.multithreaded
+        )
+    
+    def __sub__(self, other):
+        """Subtract two matrices using the C backend and return a new Matrix."""
+        if not isinstance(other, Matrix):
+            raise NotImplementedError
+
+        if self.m != other.m or self.n != other.n:
+            raise ValueError("Matrix dimensions must match for addition.")
+
+        new_ptr = CFunc.matrix_sub(self._ptr, other._ptr, int(self._flags.multithreaded))
+        if not new_ptr:
+            raise MemoryError("C backend failed to allocate result matrix.")
+
+        return Matrix.__init__C_native(
+            new_ptr,
+            sig_digits=self._flags.sig_digits,
+            use_color=self._flags.use_color,
+            multithreaded=self._flags.multithreaded
+        )
+    
+    def __mul__(self, other):
+        """Subtract two matrices using the C backend and return a new Matrix."""
+        if not isinstance(other, Matrix):
+            raise NotImplementedError
+
+        if self.n != other.m:
+            raise ValueError("Matrix dimensions must match for addition.")
+
+        new_ptr = CFunc.matrix_mul(self._ptr, other._ptr, int(self._flags.multithreaded))
+        if not new_ptr:
+            raise MemoryError("C backend failed to allocate result matrix.")
+        
         return Matrix.__init__C_native(
             new_ptr,
             sig_digits=self._flags.sig_digits,

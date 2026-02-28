@@ -12,6 +12,43 @@ static PyObject* py_matrix_create(PyObject* self, PyObject* args) {
     return wrap_matrix(M);
 }
 
+static PyObject* py_matrix_create_from_buffer(PyObject* self, PyObject* args) {
+    PyObject* obj;
+    int m, n;
+
+    if (!PyArg_ParseTuple(args, "Oii", &obj, &m, &n))
+        return NULL;
+
+    Py_buffer view;
+
+    if (PyObject_GetBuffer(obj, &view, PyBUF_CONTIG_RO) < 0)
+        return NULL;
+
+    if (view.itemsize != sizeof(double)) {
+        PyErr_SetString(PyExc_TypeError, "Buffer must contain double precision floats.");
+        PyBuffer_Release(&view);
+        return NULL;
+    }
+
+    if (view.len != (Py_ssize_t)(m * n * sizeof(double))) {
+        PyErr_SetString(PyExc_ValueError, "Buffer size does not match matrix dimensions.");
+        PyBuffer_Release(&view);
+        return NULL;
+    }
+
+    Matrix* M = matrix_create(m, n);
+    if (!M) {
+        PyBuffer_Release(&view);
+        return PyErr_NoMemory();
+    }
+
+    memcpy(M->data, view.buf, view.len);
+
+    PyBuffer_Release(&view);
+
+    return wrap_matrix(M);
+}
+
 static PyObject* py_matrix_free(PyObject* self, PyObject* args) {
     PyObject* capsule;
     if (!PyArg_ParseTuple(args, "O", &capsule)) return NULL;
@@ -81,6 +118,40 @@ static PyObject* py_matrix_add(PyObject* self, PyObject* args, PyObject* kwargs)
     return wrap_matrix(C);
 }
 
+static PyObject* py_matrix_sub(PyObject* self, PyObject* args, PyObject* kwargs) {
+    PyObject *capsule_a, *capsule_b;
+    int multithreaded = 1;
+    static char *kwlist[] = {"A", "B", "multithreaded", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|p", kwlist, &capsule_a, &capsule_b, &multithreaded))
+        return NULL;
+
+    Matrix* A = PyCapsule_GetPointer(capsule_a, "hjortMatrixWrapper.Matrix");
+    Matrix* B = PyCapsule_GetPointer(capsule_b, "hjortMatrixWrapper.Matrix");
+
+    Matrix* C = matrix_sub(A, B, multithreaded);
+    if(!C) Py_RETURN_NONE;
+
+    return wrap_matrix(C);
+}
+
+static PyObject* py_matrix_mul(PyObject* self, PyObject* args, PyObject* kwargs) {
+    PyObject *capsule_a, *capsule_b;
+    int multithreaded = 1;
+    static char *kwlist[] = {"A", "B", "multithreaded", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|p", kwlist, &capsule_a, &capsule_b, &multithreaded))
+        return NULL;
+
+    Matrix* A = PyCapsule_GetPointer(capsule_a, "hjortMatrixWrapper.Matrix");
+    Matrix* B = PyCapsule_GetPointer(capsule_b, "hjortMatrixWrapper.Matrix");
+
+    Matrix* C = matrix_mul(A, B, multithreaded);
+    if(!C) Py_RETURN_NONE;
+
+    return wrap_matrix(C);
+}
+
 static PyObject* py_matrix_seed_random(PyObject* self, PyObject* args) {
     unsigned int seed;
     if (!PyArg_ParseTuple(args, "I", &seed)) return NULL;
@@ -115,6 +186,7 @@ static PyObject* py_matrix_get_min(PyObject* self, PyObject* args) {
 
 static PyMethodDef HjortMatrixWrapperMethods[] = {
     {"matrix_create", py_matrix_create, METH_VARARGS, ""},
+    {"matrix_create_from_buffer", py_matrix_create_from_buffer, METH_VARARGS, ""},
     {"matrix_free", py_matrix_free, METH_VARARGS, ""},
     {"matrix_set", py_matrix_set, METH_VARARGS, ""},
     {"matrix_get", py_matrix_get, METH_VARARGS, ""},
@@ -122,6 +194,8 @@ static PyMethodDef HjortMatrixWrapperMethods[] = {
     {"matrix_rows", py_matrix_rows, METH_VARARGS, ""},
     {"matrix_cols", py_matrix_cols, METH_VARARGS, ""},
     {"matrix_add", (PyCFunction)py_matrix_add, METH_VARARGS | METH_KEYWORDS, ""},
+    {"matrix_sub", (PyCFunction)py_matrix_add, METH_VARARGS | METH_KEYWORDS, ""},
+    {"matrix_mul", (PyCFunction)py_matrix_mul, METH_VARARGS | METH_KEYWORDS, ""},
     {"matrix_seed_random", py_matrix_seed_random, METH_VARARGS, ""},
     {"matrix_fill_random", py_matrix_fill_random, METH_VARARGS, ""},
     {"matrix_get_max", py_matrix_get_max, METH_VARARGS, ""},

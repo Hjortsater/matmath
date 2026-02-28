@@ -19,5 +19,8 @@ class CFunc:
     matrix_rows = _lib.matrix_rows
     matrix_cols = _lib.matrix_cols
     matrix_add = _lib.matrix_add
+    matrix_sub = _lib.matrix_sub
+    matrix_mul = _lib.matrix_mul
     matrix_seed_random = _lib.matrix_seed_random
     matrix_fill_random = _lib.matrix_fill_random
+    matrix_create_from_buffer = _lib.matrix_create_from_buffer
