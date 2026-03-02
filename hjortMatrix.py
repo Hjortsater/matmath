@@ -90,24 +90,25 @@ class Matrix:
     ### DUNDER OPERATIONS
 
     def __add__(self, other: Self) -> Self:
-        """Add two matrices using the C backend and return a new Matrix."""
         if not isinstance(other, Matrix):
             raise NotImplementedError
 
         if self.m != other.m or self.n != other.n:
             raise ValueError("Matrix dimensions must match for addition.")
 
-        new_ptr: Optional[int] = CFunc.matrix_add(self._ptr, other._ptr, int(self._flags.multithreaded))
-        if not new_ptr:
+        result_ptr: Optional[int] = CFunc.matrix_create(self.m, self.n)
+        if not result_ptr:
             raise MemoryError("C backend failed to allocate result matrix.")
 
+        CFunc.matrix_add_inplace(self._ptr, other._ptr, result_ptr, int(self._flags.multithreaded))
+
         return Matrix.__init__C_native(
-            new_ptr,
+            result_ptr,
             sig_digits=self._flags.sig_digits,
             use_color=self._flags.use_color,
             multithreaded=self._flags.multithreaded
         )
-    
+        
     def __sub__(self, other: Self) -> Self:
         """Subtract two matrices using the C backend and return a new Matrix."""
         if not isinstance(other, Matrix):
