@@ -24,3 +24,5 @@ class CFunc:
     matrix_seed_random = _lib.matrix_seed_random
     matrix_fill_random = _lib.matrix_fill_random
     matrix_create_from_buffer = _lib.matrix_create_from_buffer
+    matrix_determinant = _lib.matrix_determinant
+    matrix_to_list = _lib.matrix_to_list
